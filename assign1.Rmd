@@ -1,0 +1,608 @@
+---
+title: "Assignment 1"
+output: html_document
+date: "2023-08-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(microbenchmark)
+```
+## R Markdown
+
+Q1.a
+
+```{r}
+Rfunc1 = function(a, b) {
+  result = sqrt(a^(2 * b))
+  return(result)
+}
+
+a = 1:10
+b = (1:10)/200
+output = Rfunc1(a, b)
+print(output)
+```
+Q1.b
+```{r}
+`%skip%` = function(x, skip) {
+  skip = as.integer(skip)
+  if (skip >= length(x)) {
+    return(vector())
+  } else {
+    return(x[seq_len(length(x)) %% skip == 1])
+  }
+}
+```
+
+```{r}
+set.seed(2023)
+a = sample(100, 10)
+result = a %skip% 3
+print(a)
+print(result)
+```
+Q1.C
+
+```{r}
+RMatMult = function(A, B) {
+  n = nrow(A)
+  m = ncol(A)
+  p = ncol(B)
+  
+  result = matrix(0, n, p)
+  
+  for (i in 1:n) {
+    for (j in 1:p) {
+      for (k in 1:m) {
+        result[i, j] = result[i, j] + A[i, k] * B[k, j]
+      }
+    }
+  }
+  
+  return(result)
+}
+
+```
+
+```{r}
+library(Rcpp)
+
+cppFunction('
+NumericMatrix RcppMatMult(NumericMatrix A, NumericMatrix B) {
+  int n = A.nrow();
+  int m = A.ncol();
+  int p = B.ncol();
+
+
+  NumericMatrix result(n, p);
+
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < p; j++) {
+      for (int k = 0; k < m; k++) {
+        result(i, j) = result(i, j) + A(i, k) * B(k, j);
+      }
+    }
+  }
+
+  return result;
+}')
+
+```
+
+
+```{r}
+A = matrix(1:8, 4)
+B = matrix(22:15, 2)
+
+result_RMatMult = RMatMult(A, B)
+result_RcppMatMult = RcppMatMult(A, B)
+result_infix = A%*%B
+
+# Measure time taken by RMatMult
+time_RMatMult = microbenchmark(
+  RMatMult(A, B),
+  times = 100
+)
+
+# Measure time taken by RcppMatMult
+time_RcppMatMult = microbenchmark(
+  RcppMatMult(A, B),
+  times = 100
+)
+
+# Measure time taken by %*%
+time_matrix_mult = microbenchmark(
+  A %*% B,
+  times = 100
+)
+
+# Print results and timings
+print("Result using RMatMult:")
+print(result_RMatMult)
+
+print("Result using RcppMatMult:")
+print(result_RcppMatMult)
+
+print("Result using %*%:")
+print(result_infix)
+
+print("Time taken by RMatMult:")
+print(time_RMatMult)
+
+print("Time taken by RcppMatMult:")
+print(time_RcppMatMult)
+
+print("Time taken by %*%:")
+print(time_matrix_mult)
+
+```
+Q1.D
+
+```{r}
+# Load the necessary libraries
+library(arrow)
+library(data.table)
+
+# Load the parquet data
+geo_heal_10 = as.data.table(read_parquet('geo_heal_10.parquet'))
+
+# Group and sum the population by country
+pop_by_country = geo_heal_10[, .(total_pop = sum(pop, na.rm = TRUE)), by = country]
+
+# Sort the results in descending order and get the top 10
+top_populous_countries = pop_by_country[order(-total_pop)][1:10]
+
+# Print the top 10 most populous countries
+print("Top 10 Most Populous Countries:")
+print(top_populous_countries)
+
+
+```
+```{r}
+# Load the necessary libraries
+library(ggplot2)
+library(data.table)
+library(viridis)
+
+# Load the parquet data
+geo_heal_10 = as.data.table(read_parquet('geo_heal_10.parquet'))
+
+# Filter data for India and with valid elevation
+india_data = geo_heal_10[country == "India" & !is.na(elev)]
+
+# Plot the map
+ggplot(india_data, aes(x = long, y = lat, fill = elev)) +
+  geom_tile() +
+  scale_fill_viridis() +
+  labs(title = "Terrain Height Map of India", fill = "Elevation (m)") +
+  theme_minimal()
+
+```
+
+
+Q2
+
+```{r}
+
+  
+
+# Function to simulate dealing cards
+deal_7_cards = function(deck) {
+  sample(deck, 7)
+}
+
+```
+
+
+```{r}
+# Function to check for straight flush
+is_straight_flush = function(cards) {
+  # Remove missing values
+  values = substr(cards, 1, nchar(cards) - 1)
+  suits = substr(cards, nchar(cards), nchar(cards))
+  
+  # Create a mapping of non-numeric values to numeric values
+  value_mapping = c("A" = c(1, 14), "2" = 2, "3" = 3, "4" = 4, "5" = 5,
+                    "6" = 6, "7" = 7, "8" = 8, "9" = 9, "T" = 10,
+                    "J" = 11, "Q" = 12, "K" = 13)
+  
+  # Convert values to numeric using the mapping
+  numeric_values = value_mapping[values]
+  
+  # Sort the numeric values
+  sorted_values = unique(sort(numeric_values))
+  if (length(sorted_values)<=4){
+    return(FALSE)
+  }
+  # Check for a straight flush with Ace as 14
+  for (i in 1:(length(sorted_values) - 4)) {
+    if (all(diff(sorted_values[i:(i + 4)]) == 1) && all(suits[i:(i + 4)] == suits[i])) {
+      return(TRUE)
+    }
+  }
+  
+  # Check for a straight flush with Ace as 1
+  numeric_values_with_ace_as_one = replace(numeric_values, numeric_values == 14, 1)
+  sorted_values_with_ace_as_one = unique(sort(numeric_values_with_ace_as_one))
+  
+  for (i in 1:(length(sorted_values_with_ace_as_one) - 4)) {
+    if (all(diff(sorted_values_with_ace_as_one[i:(i + 4)]) == 1) && all(suits[i:(i + 4)] == suits[i])) {
+      return(TRUE)
+    }
+  }
+  
+  return(FALSE)
+}
+
+
+
+# Function to check for straight
+is_straight = function(values) {
+  # Remove missing values
+  values = values[!is.na(values)]
+  
+  # Create a mapping of non-numeric values to numeric values
+  value_mapping = c("A" = 1, "2" = 2, "3" = 3, "4" = 4, "5" = 5,
+                    "6" = 6, "7" = 7, "8" = 8, "9" = 9, "T" = 10,
+                    "J" = 11, "Q" = 12, "K" = 13)
+  
+  # Convert values to numeric using the mapping
+  numeric_values = value_mapping[values]
+  
+  # Sort the numeric values
+  sorted_values = unique(sort(numeric_values))
+  if (length(sorted_values)<=4){
+    return(FALSE)
+  }
+  # Check for a straight using sorted numeric values
+  for (i in 1:(length(sorted_values) - 4)) {
+    if (all(diff(sorted_values[i:(i + 4)]) == 1)) {
+      return(TRUE)
+    }
+  }
+  
+  # Check for a straight with Ace as 1
+  numeric_values_with_ace_as_one = replace(numeric_values, numeric_values == 14, 1)
+  sorted_values_with_ace_as_one = unique(sort(numeric_values_with_ace_as_one))
+  
+  for (i in 1:(length(sorted_values_with_ace_as_one) - 4)) {
+    if (all(diff(sorted_values_with_ace_as_one[i:(i + 4)]) == 1)) {
+      return(TRUE)
+    }
+  }
+  
+  return(FALSE)
+}
+
+
+# Function to check for flush
+is_flush = function(suits) {
+  # Remove missing values
+  suits = suits[!is.na(suits)]
+  
+  suit_counts = table(suits)
+  any_flush = any(suit_counts >= 5)
+  return(any_flush)
+}
+
+# Function to check for four of a kind
+is_four_of_a_kind = function(values) {
+  # Remove missing values
+  values = values[!is.na(values)]
+  
+  value_counts = table(values)
+  if (any(value_counts == 4)) {
+    return(TRUE)
+  }
+  
+  return(FALSE)
+}
+
+# Function to check for full house
+is_full_house = function(values) {
+  # Remove missing values
+  values = values[!is.na(values)]
+  
+  value_counts = table(values)
+  
+  # Find unique values with count 3 or more and 2 or more
+  unique_values = unique(values)
+  count_3_or_more = unique_values[value_counts[unique_values] >= 3]
+  count_2_or_more = unique_values[value_counts[unique_values] >= 2]
+  
+  if (length(count_3_or_more) >= 1 && length(count_2_or_more) >= 2) {
+    return(TRUE)
+  }
+  
+  return(FALSE)
+}
+
+
+# Function to evaluate the best 5-card hand
+evaluate_best_hand = function(cards) {
+  best_hand = NULL
+
+  # Sort the cards by value
+  sorted_cards = sort(cards)
+
+  # Check for straight flush
+  if (is_straight_flush(sorted_cards)) {
+    best_hand = "Straight Flush"
+  }
+  
+  # Check for 4 of kind
+  else if (is_four_of_a_kind(substr(sorted_cards, 1, nchar(sorted_cards) - 1))) {
+    best_hand = "Four of a Kind"
+  }
+  
+  #Check Full House
+  else if (is_full_house(substr(sorted_cards, 1, nchar(sorted_cards) - 1))) {
+    best_hand = "Full House"
+  }
+  
+   #Check for Flush
+  else if (is_flush(substr(sorted_cards, nchar(sorted_cards), nchar(sorted_cards)))){
+    best_hand = "Flush"
+  }
+  
+  #Check for straight
+  else if (is_straight(substr(sorted_cards, 1, nchar(sorted_cards) - 1))){
+    best_hand = "Straight"
+  }
+  # Add checks for other hands...
+  
+  else {
+    best_hand = "Not as Good"
+  }
+  # print(best_hand)
+  return(best_hand)
+}
+```
+
+
+```{r}
+# Number of iterations
+total_iterations = 50000
+
+# Initialize counts
+flush_count = 0
+straight_count = 0
+full_house_count = 0
+sf_count = 0
+four_count = 0
+
+# Simulation loop
+for (i in 1:total_iterations) {
+  deck = rep(c('2','3','4','5','6','7','8','9','T','J','Q','K','A'), 4)
+  suits = c('c', 'd', 'h', 's')
+  deck = paste(deck, rep(suits, each = 13), sep = '')  # Generate a shuffled deck
+  
+  hand = deal_7_cards(deck)  # Deal 7 cards
+  # Evaluate the best 5-card hand
+  best_hand = evaluate_best_hand(hand)
+
+  # Count the occurrences of each hand type
+  if (best_hand=="Flush") {
+    flush_count = flush_count + 1
+  }
+  if (best_hand=="Straight") {
+    straight_count = straight_count + 1
+  }
+  if (best_hand=="Full House") {
+    full_house_count = full_house_count + 1
+  }
+  if (best_hand=="Straight Flush") {
+    sf_count = sf_count + 1
+  }
+  if (best_hand=="Four of a Kind") {
+    four_count = four_count + 1
+  }
+}
+
+# Calculate probabilities
+prob_flush = flush_count / total_iterations
+prob_straight = straight_count / total_iterations
+prob_full_house = full_house_count / total_iterations
+prob_sf = sf_count / total_iterations
+prob_four = four_count / total_iterations
+
+# Print probabilities
+print("Probability of Any Flush:")
+print(prob_flush)
+print("Probability of Any Straight:")
+print(prob_straight)
+print("Probability of Full House:")
+print(prob_full_house)
+
+print("Probability of SF:")
+print(prob_sf)
+print(sf_count)
+
+print("Probability of 4oaK:")
+print(prob_four)
+```
+Q3.a
+
+```{r}
+library(Rcpp)
+
+cppFunction('
+bool isPrime(int n) {
+  if (n <= 1) return false;
+  if (n <= 3) return true;
+  if (n % 2 == 0 || n % 3 == 0) return false;
+  
+  for (int i = 5; i * i <= n; i += 6) {
+    if (n % i == 0 || n % (i + 2) == 0) return false;
+  }
+  
+  return true;
+}')
+
+numbers = c(40001407, 40001447, 40001467, 40001473)
+
+for (num in numbers) {
+  if (isPrime(num)) {
+    cat(num, "is prime.\n")
+  } else {
+    cat(num, "is not prime.\n")
+  }
+}
+
+```
+
+
+```{r}
+cppFunction('
+int countPrimes(int limit) {
+  std::vector<bool> is_prime(limit + 1, true);
+  is_prime[0] = is_prime[1] = false;
+  
+  for (int i = 2; i * i <= limit; ++i) {
+    if (is_prime[i]) {
+      for (int j = i * i; j <= limit; j += i) {
+        is_prime[j] = false;
+      }
+    }
+  }
+  
+  int count = 0;
+  for (int i = 2; i <= limit; ++i) {
+    if (is_prime[i]) {
+      ++count;
+    }
+  }
+  
+  return count;
+}')
+
+limit = 500000000
+primes_count = countPrimes(limit)
+cat("Number of primes less than", limit, ":", primes_count, "\n")
+
+```
+
+
+```{r}
+cppFunction('
+int nthPrime(int n) {
+  int limit = 100000000;  // Initial limit
+  int count = 0;
+
+  std::vector<bool> is_prime(limit + 1, true);
+  is_prime[0] = is_prime[1] = false;
+  
+  for (int i = 2; i * i <= limit; ++i) {
+    if (is_prime[i]) {
+      for (int j = i * i; j <= limit; j += i) {
+        is_prime[j] = false;
+      }
+    }
+  }
+  
+  for (int i = 2; i <= limit; ++i) {
+    if (is_prime[i]) {
+      ++count;
+      if (count == n) {
+        return i;
+      }
+    }
+  }
+
+  return -1;  // If not found within the initial limit
+}')
+
+n = 20000000
+nth_prime = nthPrime(n)
+if (nth_prime == -1){
+  print("Increase Limit prime not found")
+} else {
+  cat("The", n, "th prime number is:", nth_prime, "\n")
+}
+```
+
+Q4
+
+```{r}
+library(Rcpp)
+
+cppFunction('
+int bounded(double A, double B, int N) {
+  double x = 0.0;
+  double y = 0.0;
+
+  for (int i = 0; i < N; ++i) {
+    double x_next = x * x - y * y + A;
+    double y_next = 2 * x * y + B;
+
+    x = x_next;
+    y = y_next;
+
+    // Check if modulus exceeds 2
+    if (x * x + y * y > 4) {
+      return i + 2; // Return the iteration number where bound is exceeded
+    }
+  }
+
+  return NA_INTEGER; // Return NA if bounded
+}
+')
+
+```
+
+Q4.b
+```{r}
+cppFunction('
+NumericMatrix mandel_grid(NumericVector real_lim, NumericVector imag_lim, int res, int N) {
+  double real_lower = real_lim[0];
+  double real_upper = real_lim[1];
+  double imag_lower = imag_lim[0];
+  double imag_upper = imag_lim[1];
+  NumericMatrix grid(res, res);
+
+  double real_step = (real_upper - real_lower) / (res - 1);
+  double imag_step = (imag_upper - imag_lower) / (res - 1);
+
+  for (int i = 0; i < res; ++i) {
+    for (int j = 0; j < res; ++j) {
+      double A = real_lower + i * real_step;
+      double B = imag_lower + j * imag_step;
+
+      int iteration = bounded(A, B, N);
+      grid(i, j) = iteration;
+    }
+  }
+
+  return grid;
+}
+')
+```
+
+```{r}
+
+R_mandel=function(loc = c(0,0), zoom = 2, res=1e3, N=1e3, index=NULL, plot=TRUE, col=rainbow(1e3), legend=FALSE, ...){
+  real_lim = loc[1] + c(-zoom,zoom)
+  imag_lim = loc[2] + c(-zoom,zoom)
+  output=mandel_grid(real_lim, imag_lim, res=res, N=N)
+  if(plot){
+    if(zoom>1e-4){
+      output=list(x=seq(real_lim[1],real_lim[2],len=res), y=seq(imag_lim[1],
+      imag_lim[2],len=res), z=output)
+      magimage(output,col=col, xlab='A (real)', ylab='B (imaginary)', ...)
+    }else{
+      magimage(output,col=col, xlab='A (real)', ylab='B (imaginary)', ...)
+    }
+  }
+  return(invisible(output))
+}
+
+
+```
+
+
+
+
