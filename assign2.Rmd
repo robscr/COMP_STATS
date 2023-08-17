@@ -1,0 +1,344 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library(magicaxis)
+library(pracma)
+library(cooltools)
+```
+
+
+Question 1
+1.a
+```{r}
+choose = function(n, k) {
+  if (k == 0) {
+    return(1)
+  } else {
+    return(factorial(n) / (factorial(k) * factorial(n - k)))
+  }
+}
+
+f = function(N) {
+  factorial_prod = 1
+  j = 0
+  
+  for (i in 1:N) {
+    j = j + i
+    factorial_prod = factorial_prod * choose(j, i)
+  }
+  
+  return(factorial_prod)
+}
+
+# Test the function
+N = 4
+distinct_arrangements = f(N)
+cat("Number of distinct arrangements for", N, "types:", distinct_arrangements, "\n")
+
+```
+```{r}
+
+f2 = function(N) {
+  factorial_prod = factorial(sum(0:N))
+  
+  
+  for (i in 1:N) {
+    factorial_prod = factorial_prod / factorial(i)
+  }
+  
+  return(factorial_prod)
+}
+
+# Test the function
+N = 4
+distinct_arrangements = f2(N)
+cat("Number of distinct arrangements for", N, "types:", distinct_arrangements, "\n")
+
+```
+1.b.
+
+```{r}
+# Function to calculate ln(f(N)) based on the formula
+ln_f_N <- function(N) {
+  sum_lfactorials <- sum(lfactorial(2:N))
+  ln_f_N <- lfactorial(sum(1:N)) - sum_lfactorials
+  return(ln_f_N)
+}
+
+# Generate N values from 1 to 10^4
+N_values <- 1:1e4
+
+# Calculate ln(f(N)) for each N value
+ln_f_values <- sapply(N_values, ln_f_N)
+
+# Plot ln(f(N))
+plot(N_values, ln_f_values, type = "l", xlab = "N", ylab = "ln(f(N))",
+     main = "Plot of ln(f(N)) for N = 1 to 10^4")
+
+# Add a grid
+grid()
+
+```
+1.c
+
+```{r}
+# Generate N values from 1 to 10^4
+N_values <- seq(from = 5*1e4, to = 8*1e4, by = 1e3)
+
+# Calculate ln(f(N)) for each N value
+ln_f_values <- sapply(N_values, ln_f_N)
+
+# Plot ln(f(N))
+plot(N_values, ln_f_values, type = "l", xlab = "N", ylab = "ln(f(N))",
+     main = "Plot of ln(f(N)) for N = 5*1e4, to = 8*1e4")
+
+# Interpolate to find N value corresponding to y=(10**10) / 0.4343
+target_y <- (10**10) / 0.4343
+interpolated <- approx(ln_f_values, N_values, xout = target_y)
+
+# Add a vertical line to indicate the interpolated N value
+abline(v = interpolated$y, col = "red")
+
+# Print the interpolated N value
+cat("Interpolated N value:", interpolated$y, "\n")
+
+```
+
+
+## better way to search?
+
+
+```{r}
+# Target value
+target_value <- (10**10) / 0.4342944819
+
+# Set an initial value for N and difference
+closest_N <- NULL
+closest_diff <- Inf
+
+# Iterate through N values and find the closest one
+for (N in 65010:65050) {
+  ln_f_value <- ln_f_N(N)
+  diff <- abs(ln_f_value - target_value)
+  
+  if (diff < closest_diff) {
+    closest_N <- N
+    closest_diff <- diff
+  }
+}
+
+# Print the result
+cat("Integer value of N:", closest_N, "\n")
+cat("Closest ln_f_N(N) value:", ln_f_N(closest_N), "\n")
+
+```
+Question 2
+2.a
+
+```{r}
+# Define the n values to plot
+n_values_to_plot <- c(2, 3, 5, 10, 15,20,30)
+
+# Initialize an empty list to store the integral values for each n
+integral_values_list <- list()
+
+# Perform Monte Carlo integration for each value of n
+for (n in n_values_to_plot) {
+  # Define the function to integrate
+  multisin <- function(x) {
+    result <- numeric(n)
+    result[1] <- x[1]
+  
+    for (i in 2:n) {
+      result[i] <- sin(result[i - 1] ** x[i])
+    }
+  
+    return(result[n])
+  }
+  
+  # Define the region of integration [0, 1]^n
+  lower_limits <- rep(0, n)
+  upper_limits <- rep(1, n)
+  
+  # Perform Monte Carlo integration using mcintegral
+  result <- mcintegral(multisin, lower_limits, upper_limits, 1e5, qmc = TRUE)
+  
+  # Store the estimated integral value
+  integral_values_list[[as.character(n)]] <- result$value
+}
+
+# Create a plot
+plot(n_values_to_plot, unlist(integral_values_list), type = "o", pch = 19, 
+     xlab = "Dimension (n)", ylab = "Estimated Integral Value",
+     main = "Estimated Integral Value for Different Dimension Values",
+     ylim = c(0, 1.5), col = "blue")
+
+# Add labels to each point
+text(n_values_to_plot, unlist(integral_values_list), labels = round(unlist(integral_values_list), 4), pos = 3, col = "blue")
+
+# Print the value of the last integration result
+cat("Value of the last integration result:", round(integral_values_list[[length(n_values_to_plot)]], 4), "\n")
+
+```
+We can see that the integral value approaches 0.768 as n grows. I expect the value as n-> infinity to be 0.768
+
+Q2.b
+
+```{r}
+
+
+# Define the function
+f <- function(x, L=L1) {
+  exp_term <- exp(-(1/L)*(((x[,1]-L/2)^2+(x[,2]-L/2)^2+(x[,3]-L/2)^2)^0.5 -
+                 ((x[,4]-L/2)^2+(x[,5]-L/2)^2+(x[,6]-L/2)^2)^0.5))
+  numerator <- (-1/2/sqrt((x[,1]-x[,4])^2+(x[,2]-x[,5])^2+(x[,3]-x[,6])^2))
+  return(exp_term * numerator)
+}
+
+# Iterate through L1 values from 1 to 10
+for (L1 in 1:10) {
+  Q <- mcintegral(f, rep(0, 6), rep(L1, 6), 1e5, qmc = TRUE)
+  cat(sprintf('For L1 = %d, Q = %.4f +/- %.4f\n', L1, Q$value, Q$error))
+}
+
+# Initialize vectors to store results
+L1_values <- 1:10
+Q_values <- numeric(length(L1_values))
+Q_errors <- numeric(length(L1_values))
+
+# Iterate through L1 values and calculate results
+for (i in 1:length(L1_values)) {
+  Q <- mcintegral(f, rep(0, 6), rep(L1_values[i], 6), 1e5, qmc = TRUE)
+  Q_values[i] <- Q$value
+  Q_errors[i] <- Q$error
+}
+
+# Create a data frame for plotting
+results_df <- data.frame(L1 = L1_values, Q = Q_values, Q_error = Q_errors)
+
+# Plot the results
+ggplot(results_df, aes(x = L1, y = Q)) +
+  geom_line() +
+  geom_errorbar(aes(ymin = Q - Q_error, ymax = Q + Q_error), width = 0.2) +
+  labs(title = "Gravitational Mass Fraction vs. L1",
+       x = "L1", y = "Gravitational Mass Fraction (Q)") +
+  theme_minimal()
+```
+### Add log log . but clearly is ^5 wrt to L. This also was inline with intuition, as example in lecture had difference of the 1/L^6 in int. Taken L=1 term as the numeric result.
+
+## G factored out as in lecture example and rho_0 factored out from the m1*m2 density matrix 
+
+
+```{r}
+cat("Gravitational binding energy",Q_values[1],"* G * rho_0^2 * L^5" )
+
+```
+
+
+Question 3
+
+```{r}
+library(stats)
+
+
+# Define the function g.freeman
+g.freeman = function(x) {
+  q = x / 2
+  x * sqrt((besselI(q, 0) * besselK(q, 0) - besselI(q, 1) * besselK(q, 1)) / 2)
+}
+
+# Find the radius value rmax where circular velocity is maximal
+rmax = optimize(g.freeman, interval = c(0, 5), maximum = TRUE)$maximum
+
+mass_frac = 1 - (rmax + 1) * exp(-rmax)
+
+# Print the value of rmax and mass fraction
+cat("Radius value rmax (r/R) where circular velocity is maximal:", rmax, "\n")
+cat("Mass Fraction contained within rmax:", mass_frac, "\n")
+
+```
+
+From Lecture notes mass fraction rad/R<x = 1 - (x+1)*e^(-x)
+Code for g was taken from lecture notes. 
+
+
+Question 4
+
+```{r}
+# Define the function
+f <- function(x) {
+  return((x[1]^2 + x[2] - 3)^2 + (x[1] + x[2]^2 - 5)^2)
+}
+
+# Run SANN optimization with multiple random initial guesses
+num_guesses <- 30
+minima_found <- list()
+
+for (i in 1:num_guesses) {
+  initial_guess <- runif(2, -10, 10)  # Random initial guess
+  result <- optim(initial_guess, f, method = "SANN")
+  
+  unique_minima <- TRUE
+  if (length(minima_found) > 0) {
+    for (j in 1:length(minima_found)) {
+      distance <- sqrt(sum((result$par - minima_found[[j]]$point)^2))
+      if (distance < 0.05) {
+        unique_minima <- FALSE
+        break
+      }
+    }
+  }
+  
+  if (unique_minima) {
+    minima_found[[length(minima_found) + 1]] <- list(point = result$par, value = result$value)
+  }
+}
+
+# Display the found unique minima
+for (i in 1:length(minima_found)) {
+  cat("Local minimum", i, "\n")
+  cat("Optimal point:", minima_found[[i]]$point, "\n")
+  cat("Optimal value:", minima_found[[i]]$value, "\n\n")
+}
+
+```
+
+```{r}
+# Define the function
+f <- function(x) {
+  return((x[1]^2 + x[2] - 3)^2 + (x[1] + x[2]^2 - 5)^2)
+}
+
+# Generate x and y values
+x <- seq(-4, 4, length.out = 500)
+y <- seq(-4, 4, length.out = 500)
+
+# Create a grid of x and y values
+grid <- expand.grid(x = x, y = y)
+
+# Calculate the function values for each point in the grid
+values <- apply(grid, 1, f)
+
+# Reshape the values to a matrix for contour plotting
+z <- matrix(values, nrow = length(x))
+
+# Create the contour plot
+contour(x, y, z, nlevels = 100, main = "Contour Plot of f(x, y)", xlab = "x", ylab = "y")
+
+# Add the found minima points to the plot
+for (i in 1:length(minima_found)) {
+  points(minima_found[[i]]$point[1], minima_found[[i]]$point[2], col = "red", pch = 3)
+}
+
+```
+
+I also ran the code to find minima on the negative of the function, it did not return any local maxima, i.e. only returned values very close to the boundary of the search (x or y approaching 500)
+
+
+
+
+
