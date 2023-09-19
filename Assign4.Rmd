@@ -1,0 +1,304 @@
+---
+title: "Assignment 4"
+output: html_notebook
+---
+### Robert Scriba 22989792
+
+
+## Question 1
+
+#### 1.a
+```{r}
+# Define the log-likelihood function
+log_likelihood <- function(x) {
+  return(-abs(x)^3)
+}
+
+# Define the prior function
+prior <- function(x) {
+  return(x^2)
+}
+
+# Compute the normalizing constant
+normalizing_constant <- integrate(function(x) exp(log_likelihood(x))*prior(x), lower = -Inf, upper = Inf)$value
+
+# Compute the posterior probability for x > 1/2
+posterior_probability <- integrate(function(x) exp(log_likelihood(x))*prior(x) / normalizing_constant, lower = 1/2, upper = Inf)$value
+
+# Print the result
+cat("The posterior probability for x > 1/2 is", posterior_probability, "\n")
+
+```
+
+#### 1.b
+
+```{r}
+# Likelihood function based on the observed data
+likelihood <- Vectorize(function(a) {
+  # Define the observed data
+  data <- c(-0.15, 3.77, 1.23)
+  
+  # Calculate the likelihood
+  likelihood_values <- dunif(data, min = -a, max = a)
+  
+  # The likelihood is the product of the probabilities
+  likelihood_product <- prod(likelihood_values)
+  
+  return(likelihood_product)
+}, vectorize.args = "a")
+
+# Range of 'a' values
+a_values <- seq(1, 10, by = 0.1)
+
+# Calculate likelihood for each 'a' value
+likelihood_values <- likelihood(a_values)
+
+# Plot the likelihood
+plot(a_values, likelihood_values, type = "l", col = "blue", lwd = 2,
+     xlab = "Parameter 'a'", ylab = "Likelihood", main = "Likelihood of 'a'")
+
+# Probability of a > 6 (flat prior)
+probability_a_gt_6 <- integrate(likelihood, lower = 6, upper = Inf)$value/integrate(likelihood, lower = 3.77, upper = Inf)$value
+
+cat("Probability of a > 6 (flat prior):", probability_a_gt_6, "\n")
+
+```
+
+
+#### 1.c
+$P(D2|D1) = P(D2|M1) * P(M1|D1) + P(D2|M2) * P(M2|D1)$ \n
+
+$P(D2|D1) = P(D2|M1) * 3/4 + P(D2|M2) * 1/4$ \n
+
+$P(D2|D1) = 0 * 3/4 + 1/4 * 3! * (9*10*10)/(29*28*27)$
+
+```{r}
+d2_different = 1/4 * factorial(3) * (9*10*10)/(29*28*27)
+cat("The probability of D2 (Following 3 draws) all different nuts is",d2_different,"\n")
+
+```
+
+#### 1.d
+<!-- Assumed: Flat prior. i.e. all orientations of galaxy in 3D space are equally likely and the galaxies orientations are independent of each other. \n -->
+
+<!-- If we consider selecting 1 point on the galaxy "disk" and the disk is free to rotate about a centre. Then the possible positions for the selected points maps the surface of the a sphere with equal probability. \n -->
+
+<!-- We can then find the probability of inclination > 10 degrees as the SA of the cap of a spherical sector as the proportion of the SA of a hemisphere. This simplifies to (1-cos(80)).  -->
+
+re-write explanation
+
+
+```{r}
+probability_no_face_on = (cos(10*pi/180))^50
+# Print the result
+cat("The probability that no galaxy is seen face-on is", probability_no_face_on, "\n")
+
+```
+
+## Question 2
+#### 2.a
+```{r}
+# Load the data
+data <- read.csv("hernquist.csv")
+
+# Create column for radius 
+data$r <- sqrt(data$x^2 + data$y^2 + data$z^2)
+
+```
+
+
+```{r}
+# Define the log-likelihood function
+log_likelihood <- function(a) {
+sum(log((4*pi*(data$r)^2) / (2 * pi * a^3 * (data$r / a) * (1 + data$r / a)^3)))
+}
+
+# Plot the log-likelihood function
+plot(seq(1, 100, length.out = 1000), sapply(seq(1, 100, length.out = 1000), log_likelihood), type = "l", xlab = "a", ylab = "Log-likelihood")
+
+```
+
+#### 2.b
+```{r}
+# Compute the MLE solution of a
+mle_a <- optimize(log_likelihood, interval = c(30, 70), maximum=TRUE)$maximum
+
+# Print the result
+cat("The MLE solution of a is", mle_a, "\n")
+```
+
+#### 2.c
+```{r}
+# Define the posterior
+map_log_posterior <- function(a){
+  log_likelihood(a) - log(a)
+}
+
+# Compute the MAP solution of a
+map_a <- optimize(map_log_posterior, interval = c(10, 60), maximum=TRUE)$maximum
+
+# Print the result
+cat("The MAP solution of a is", map_a, "\n")
+
+```
+
+## Question 3
+#### 3.a
+Given.
+$L(µ) = 100 · C(7.823; µ)^{99} ·ρ(7.823; µ)$
+
+#### 3.b
+```{r}
+library(ggplot2)
+
+# Constants
+n <- 100
+xmax <- 7.823
+
+# Likelihood Function
+likelihood <- function(mu) {
+  n * pnorm(xmax, mean = mu, sd = 1)^(n - 1) * dnorm(xmax, mean = mu, sd = 1)
+}
+
+# Plot Posterior of µ
+mu_values <- seq(0, 10, by = 0.01)
+posterior <- likelihood(mu_values) #/integrate(likelihood, lower=-Inf, upper=Inf)$value 
+  # For other functions commented may be required, but here likelihood is normalised  
+posterior <- posterior 
+
+plot_data <- data.frame(mu = mu_values, posterior = posterior)
+ggplot(plot_data, aes(x = mu, y = posterior)) +
+  geom_line() +
+  labs(x = "µ", y = "Posterior Probability") +
+  ggtitle("Posterior Distribution of µ")
+
+```
+
+
+#### 3.c
+```{r}
+# Define Posterior
+map_posterior <- function(mu){
+  likelihood(mu)
+}
+# Compute the MAP solution of a
+map_mu <- optimize(map_posterior, interval = c(4, 7), maximum=TRUE)$maximum
+
+
+cat("The MAP solution of µ is", map_mu, "\n")
+
+```
+
+#### 3.d
+```{r}
+# Compute Expectation
+expectation <- sum(mu_values * posterior)/100 #dependent on dmu
+cat("Expectation of µ from Discrete interval:", expectation,"\n")
+
+expectation_int = integrate(function(mu) mu*map_posterior(mu), lower = -Inf, upper = Inf)$value
+cat("Expectation of µ from integral over all space:", expectation_int)
+```
+
+
+
+## Question 4
+#### 4.a
+```{r}
+# Load the data
+data <- read.csv("cosmicrays.txt", header = FALSE)
+```
+
+
+```{r}
+x_dat <- data$V1
+
+log_likelihood <- function(parameters,dat) {
+  k <- parameters[1]
+  alpha <- parameters[2]
+  # Likelihood term involving the sum
+  log_lambda_sum <- sum(log(k) + alpha * log(dat) )
+  
+  # Define lambda for integration
+  lambda <- function(x) k * x^alpha
+  
+  # Compute the integral
+  integral_value <- integrate(lambda, lower=10, upper=1500)$value
+
+  # Log-likelihood
+  log_lik <- log_lambda_sum - integral_value
+  return(log_lik)  # Return log-likelihood
+}
+
+initial_parameters <- c(1, -1)  # Initial guess for k and alpha
+result <- optim(par = initial_parameters, fn = log_likelihood, dat=x_dat,hessian=T, control=list(fnscale=-1))
+mle_k <- result$par[1]
+mle_alpha <- result$par[2]
+
+cat("Optimised MLE parameter solutions are,\n k = ", mle_k, "\n α =", mle_alpha)
+```
+
+
+#### 4.b
+```{r, include=FALSE}
+# Calculate Hessian matrix
+hessian <- -solve(result$hessian)
+
+# Standard errors
+se_k <- sqrt(hessian[1, 1])
+se_alpha <- sqrt(hessian[2, 2])
+
+# Confidence intervals (assuming normal distribution)
+alpha_level <- 0.05  # Significance level (e.g., 95% confidence interval)
+z_value <- qnorm(1 - alpha_level / 2)
+ci_k <- c(mle_k - z_value * se_k, mle_k + z_value * se_k)
+ci_alpha <- c(mle_alpha - z_value * se_alpha, mle_alpha + z_value * se_alpha)
+
+cat("Optimized MLE parameter solutions are:\n")
+cat("k =", mle_k, "\n")
+cat("alpha =", mle_alpha, "\n")
+cat("\nStandard errors:\n")
+cat("SE(k) =", se_k, "\n")
+cat("SE(alpha) =", se_alpha, "\n")
+cat("\nConfidence intervals (95%):\n")
+cat("CI(k) =", ci_k[1], "-", ci_k[2], "\n")
+cat("CI(alpha) =", ci_alpha[1], "-", ci_alpha[2])
+```
+
+```{r}
+# Laplace approximation
+cov_matrix <- -solve(result$hessian)  
+k.mle = mle_k
+alpha.mle = mle_alpha
+k.sd <- sqrt(cov_matrix[1, 1])  # Standard deviation of k
+alpha.sd <- sqrt(cov_matrix[2, 2])  # Standard deviation of alpha
+
+library(magicaxis)
+library(ellipse)
+
+# Define plot limits
+xlim <- c(85000, 94000) # Plotted range of temperatures
+ylim <- c(-2.65, -2.55) # Plotted range of amplitudes
+
+# Plot MLE solution
+magplot(k.mle, alpha.mle, xlim = xlim, ylim = ylim, pch = 20, xaxs = 'i', yaxs = 'i',
+        xlab = 'k', ylab = 'α', main = "MLE Solution for Cosmic Rays")
+
+# Plot 1-sigma and 2-sigma regions with labels and colors
+ellipse_1sigma <- ellipse(cov_matrix, centre = c(k.mle, alpha.mle), level = 0.68)
+ellipse_2sigma <- ellipse(cov_matrix, centre = c(k.mle, alpha.mle), level = 0.95)
+
+lines(ellipse_1sigma, col = "blue")
+lines(ellipse_2sigma, col = "red", lty = 2)
+
+# Legend for ellipses
+legend("topright", legend = c("68% Prob", "95% Prob", "SD Error-k","SD Error-α"), col = c("blue", "red",'green','green'), lty = c(1, 2, 1 ,2))
+
+
+# Center point label
+text(k.mle, alpha.mle, labels = "MLE Soln. \n (89825,-2.599)", pos = 3, col = "black")
+
+# Standard deviation segments with labels
+segments(k.mle - k.sd, alpha.mle, k.mle + k.sd, col="green")
+segments(k.mle, alpha.mle - alpha.sd, y1 = alpha.mle + alpha.sd,col="green",lty=2)
+
+```
