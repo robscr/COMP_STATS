@@ -1,0 +1,316 @@
+---
+title: "Assign5"
+output:
+  html_notebook: default
+  pdf_document: default
+---
+### Robert Scriba 22989793
+```{r}
+library(DiagrammeR)
+library(data.table)
+library(magicaxis)
+library(celestial)
+library(sphereplot)
+library(LaplacesDemon)
+```
+
+
+## Question 1
+
+
+```{r}
+# Define initial conditions
+CGM <- 1
+ISM <- 0
+Stars <- 0
+LockedLowMass <- 0
+NewHighMass <- 0
+LockedHighMass <- 0
+SN <- 0
+SNWinds <- 0
+ISMWinds <- 0
+
+# Define the time step and maximum time
+dt <- 10  # Time step
+max_time <- 1000# Maximum time
+
+# Define the condition for stopping
+stop_condition <- FALSE
+
+# Define the target mass (50% of the initial CGM mass)
+target_mass <- 0.5 #*CGM
+
+# Initialize time
+time <- 0
+
+# Start the simulation loop
+while (!stop_condition) {
+  # Update the masses
+  ISM <- ISM + CGM * 0.1
+  CGM <- CGM * 0.9
+  Stars <- ISM * 0.03
+  LockedLowMass <- LockedLowMass + Stars * 0.85
+  NewHighMass <- Stars * 0.15
+  LockedHighMass <- LockedHighMass + NewHighMass * 0.6
+  SN <- NewHighMass * 0.4
+  LockedLowMass <- LockedLowMass + SN * 0.8
+  
+  SNWinds <- SN * 0.2 
+  ISMWinds <-  0.97 * ISM + SNWinds
+  ISM <-0
+  CGM <- CGM + 10 * SNWinds
+  ISMWinds <- ISMWinds - 10 * SNWinds
+  ISM <- ISM + ISMWinds
+  ISMWinds <- 0
+  
+  # Update time
+  time <- time + dt
+  # Check if the condition is met
+  if ((LockedLowMass + LockedHighMass) >= target_mass || time >= max_time) {
+    stop_condition <- TRUE
+    print(CGM)
+    print(ISM)
+    print(LockedLowMass + LockedHighMass)
+    total<-0
+    total = LockedLowMass + LockedHighMass + ISM + CGM
+    print(total)
+  }
+}
+
+# Print the time when the condition is met
+cat("Time when at least 50% of mass is locked up in low and high-mass stars:", time, "Myrs\n")
+
+```
+
+
+
+
+## Question 2
+```{r}
+union = fread('http://supernova.lbl.gov/union/figures/SCPUnion2.1_mu_vs_z.txt')
+names(union) = c('Name','Redshift','DistMod','DistMod_err','Prop')
+```
+
+```{r}
+likelihood_function <- function(params, data) {
+  H0 <- params[1]
+  OmegaM <- params[2]
+  OmegaL <- params[3]
+  
+  # Calculate expected distance modulus using cosdistDistMod
+  expected_dist_modulus <- cosdistDistMod(data$Redshift, H0 = H0, OmegaM = OmegaM, OmegaL = OmegaL)
+  
+  # Calculate the negative log-likelihood (assuming normally distributed errors)
+  # neg_log_likelihood <- sum(log(((data$DistMod - expected_dist_modulus)/(1000000*data$DistMod_err))^2))
+  
+  log_likelihood <- sum(dnorm(data$DistMod - expected_dist_modulus, 0,data$DistMod_err))
+    
+  return(log_likelihood)
+}
+```
+
+
+
+```{r}
+# Initial parameter values and fitting limits
+initial_params <- c(H0 = 75, OmegaM = 0.5, OmegaL = 0.5)
+param_limits <- cbind(c(25, 125), c(0, 1), c(0, 1))
+
+fit <- optim(
+  par = initial_params,fn = likelihood_function,data = union, method = "L-BFGS-B",lower = param_limits[1 ,], upper = param_limits[2 ,],control=list(fnscale=-1))
+
+# Extract the maximum likelihood estimates
+H0_mle <- fit$par[1]
+OmegaM_mle <- fit$par[2]
+OmegaL_mle <- fit$par[3]
+
+# Print the results
+cat("Maximum Likelihood Estimates:\n")
+cat(paste("H0 =", H0_mle, "\n"))
+cat(paste("OmegaM =", OmegaM_mle, "\n"))
+cat(paste("OmegaL =", OmegaL_mle, "\n"))
+
+```
+
+```{r}
+magplot(union[,list(Redshift,DistMod)], pch=16, cex=0.5, grid=TRUE)
+magerr(union$Redshift, union$DistMod, ylo=union$DistMod_err)
+curve(cosdistDistMod(x, H0=100, OmegaM=1, OmegaL=0), add=TRUE, col='red')
+curve(cosdistDistMod(x, H0=H0_mle, OmegaM=OmegaM_mle, OmegaL=OmegaL_mle), add=TRUE, col='green')
+```
+
+
+## Question 3
+```{r}
+set.seed(2023)
+xdata = sort(runif(30, max=20))
+ydata = rnorm(30, mean=2.1 + xdata*1.8, sd=xdata/3.3)
+assign5_q3 = data.table(x=xdata, y=ydata, y_sigma=xdata/3.3)
+```
+
+#### 3.a
+```{r}
+# Define the likelihood functions
+likelihood_normal <- function(params, x, y, sigma) {
+  alpha <- params[1]
+  beta <- params[2]
+  
+  predicted <- alpha * x + beta
+  residuals <- (y - predicted) 
+  likelihood <- sum(dnorm(residuals, mean = 0, sd = sigma, log = TRUE))
+  return(-likelihood) # We use negative log-likelihood for optimization
+}
+
+
+# Initial parameter values
+initial_params <- c(1, 1)
+
+# Optimize using Normal likelihood
+result_normal <- optim(initial_params, likelihood_normal, x = xdata, y = ydata, sigma = y_sigma)
+alpha_normal <- result_normal$par[1]
+beta_normal <- result_normal$par[2]
+
+
+cat("Using Normal likelihood:\n")
+cat("Most likely alpha:", alpha_normal, "\n")
+cat("Most likely beta:", beta_normal, "\n")
+
+```
+
+#### 3.b
+```{r}
+likelihood_chi_square <- function(params, x, y, sigma) {
+  alpha <- params[1]
+  beta <- params[2]
+  
+  predicted <- alpha * x + beta
+  residuals <- (y - predicted) / sigma
+  chi_square <- sum(residuals^2)
+  return(chi_square)
+}
+
+# Optimize using Chi-square likelihood
+result_chi_square <- optim(initial_params, likelihood_chi_square, x = xdata, y = ydata, sigma = y_sigma)
+alpha_chi_square <- result_chi_square$par[1]
+beta_chi_square <- result_chi_square$par[2]
+
+cat("Using Chi-square likelihood:\n")
+cat("Most likely alpha:", alpha_chi_square, "\n")
+cat("Most likely beta:", beta_chi_square, "\n")
+```
+
+
+## Question 4
+```{r, echo=FALSE}
+set.seed(2023)
+FracBias = 0.3
+CoinBias = 0.9
+lambda = 7
+N = 1e6
+draws = rbinom(N,1,prob=FracBias)
+draws[draws==0] = 0.5
+draws[draws==1] = CoinBias
+assign5_q4 = table(rbinom(n=N, size=rpois(n=N,lambda=lambda), prob=draws))
+assign5_q4_table = data.table(n=0:21, x=0L)
+assign5_q4_table[as.integer(names(assign5_q4))+1, x:=as.integer(assign5_q4)]
+```
+#### 4.a
+$$
+L(F_b, P_b, \lambda) \propto \prod_{i=1}^{21} \left( \sum_{N=0}^{\infty} [F_b.\text{dbinom}(k=n_i, n=N, p=P_b)+ (1-F_b).\text{dbinom}(k=n_i, n=N, p=0.5)].\text{dpois}(k=N, \lambda=\lambda)\right)^{x_i},
+$$
+
+#### 4.b
+```{r}
+data_coin = assign5_q4_table
+
+innersum <- function(Fb, Pb, lambda, ni, N) {
+  bias <- Fb * dbinom(ni, N, Pb)
+  unbias <- (1 - Fb) * dbinom(ni, N, 0.5)
+  pois <- dpois(N, lambda)
+  return((bias + unbias) * pois)
+}
+
+likelihood <- function(Fb, Pb, lambda, data= data_coin, N_upper=200) {
+  likelihood_value <- 1
+  x <- data_coin$x
+  for (i in 1:21) {
+    ni <- i-1
+    xi <- x[i]
+    
+    inner_sum <- 0
+    for (N in 0:N_upper) {
+      inner_sum <- inner_sum + innersum(Fb, Pb, lambda, ni, N)
+    }
+    likelihood_value <- likelihood_value * (inner_sum ^ (10^(-6) * xi))
+  }
+  return(likelihood_value)
+}
+```
+
+
+#### 4.c
+```{r}
+log_likelihood <- function(params,data=data_coin) {
+  Fb <- params[1]
+  Pb <- params[2]
+  lambda <- params[3]
+  log_likelihood_value <- log(likelihood(Fb, Pb, lambda, data))
+  return(log_likelihood_value * 10^6)
+}
+result = log_likelihood(c(0.1, 0.8, 5),data_coin)
+
+cat("The log likelihood is:", result)
+```
+
+
+#### 4.d
+```{r}
+
+
+# Initial guess for parameters (starting from part c)
+initial_params <- c(0.1, 0.8, 5)
+
+# Run optimization
+result <- optim(par = initial_params,data=assign5_q4_table, fn = log_likelihood, method = "L-BFGS-B",control=list(fnscale=-1),lower = c(0, 0, 0), upper = c(1, 1, 15))
+
+# Extract the estimated parameters
+estimated_params <- result$par
+
+# Display the estimated parameters
+cat("Estimated Parameters:\n")
+cat("Fb =", estimated_params[1], "\n")
+cat("Pb =", estimated_params[2], "\n")
+cat("lambda =", estimated_params[3], "\n")
+
+```
+
+#### 4.e
+
+```{r}
+Data_0 = list(data=assign5_q4_table, mon.names='', parm.names=c('F_b', 'P_b', 'lambda'), N=sum(assign5_q4_table$x))
+
+Model_coin = function(parm, data) {
+  parm[1] = interval(parm[1], 0, 1)
+  parm[2] = interval(parm[2], 0, 1)
+  parm[3] = interval(parm[3], 0, 15)
+  val.prior = 0
+  LL = log_likelihood(parm,data)
+  LP = LL+val.prior
+  return(list(LP=LP, Dev=-2*LL, Monitor=1, yhat=1, parm=parm))
+}
+output_0 = LaplacesDemon(Model_coin, Data_0, Initial.Values=estimated_params, Algorithm='CHARM',
+Iterations=1e4, Thinning = 10, Status = Inf)
+
+```
+
+```{r}
+magtri(output_0$Posterior1)
+
+```
+
+
+```{r}
+output_0$Summary1
+```
+
+

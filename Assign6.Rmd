@@ -1,0 +1,289 @@
+---
+title: "Assignment 6"
+output: html_notebook
+---
+
+### Robert Scriba 22989793
+```{r, quietly=TRUE}
+library(magicaxis)
+library(cooltools)
+library(pracma)
+library(data.table)
+library(ggplot2)
+```
+
+## Question 1
+```{r}
+data <- fread("hiddenscales.csv")
+```
+
+```{r}
+# # Load the required library
+# library("scatterplot3d")
+# 
+# # Create a 3D scatter plot of the data
+# scatterplot3d(
+#   x = data$x,  # Replace with the actual column names from your data
+#   y = data$y,
+#   z = data$z,
+#   pch = 16,       # Point symbol (adjust as needed)
+#   color = "blue", # Point color (adjust as needed)
+#   main = "3D Scatter Plot of Data",
+#   xlab = "X Axis Label",  # Replace with your axis labels
+#   ylab = "Y Axis Label",
+#   zlab = "Z Axis Label"
+# )
+# 
+# # You can customize the plot further based on your preferences.
+
+```
+```{r}
+# # Load the required library
+# library("scatterplot3d")
+# 
+# # Create 2D scatter plot for XY plane
+# plot(data$x, data$y, pch = 16, col = "blue", main = "XY Plane",
+#      xlab = "X Axis", ylab = "Y Axis")
+# 
+# # Create 2D scatter plot for YZ plane
+# plot(data$y, data$z, pch = 16, col = "red", main = "YZ Plane",
+#      xlab = "Y Axis", ylab = "Z Axis")
+# 
+# # Create 2D scatter plot for XZ plane
+# plot(data$x, data$z, pch = 16, col = "green", main = "XZ Plane",
+#      xlab = "X Axis", ylab = "Z Axis")
+# 
+# 
+# plot((data$x^2 + data$y^2 + data$z^2)^0.5, data$x, pch = 16, col = "blue", main = "XY Plane",
+#      xlab = "X Axis", ylab = "Y Axis")
+
+```
+
+
+```{r}
+# # Define the function to compute the Euclidean distance
+# euclidean_distance <- function(p1, p2) {
+#   sqrt(sum((p1 - p2)^2))
+# }
+# 
+# # Define the function to compute the 2PCF using the Landy-Szalay estimator
+# two_point_estimation <- function(data, dr = 0.001) {
+#   n <- nrow(data)  # Number of data points
+#   d <- ncol(data)  # Number of dimensions ( d = 3)
+#   r_max <- 3.
+#   
+#   # Create an empty matrix to store pair counts
+#   pair_counts <- matrix(0, nrow = n, ncol = n)
+#   
+#   # Compute pair counts
+#   for (i in 1:n) {
+#     for (j in (i + 1):n) {
+#       distance <- euclidean_distance(data[i, ], data[j, ])
+#       if (distance <= r_max & distance >= r_min) {
+#         pair_counts[i, j] <- 1
+#         pair_counts[j, i] <- 1  # Pair counts are symmetric
+#       }
+#     }
+#   }
+#   
+#   # Create an empty vector to store the 2PCF
+#   xi <- numeric(round(r_max / dr))
+#   
+#   # Compute the 2PCF
+#   for (k in 1:length(xi)) {
+#     r_lower <- (k - 1) * dr
+#     r_upper <- k * dr
+#     rr_pairs <- sum(pair_counts[rowSums(pair_counts[, ] >= 2) > 0, ] >= 1)
+#     dr_pairs <- sum(pair_counts[rowSums(pair_counts[, ] >= 1) > 0, ] >= 1)
+#     dd_pairs <- sum(rowSums(pair_counts >= 2) >= 1)
+#     nr_pairs <- sum(pair_counts >= 1)
+#     xi[k] <- (rr_pairs - 2 * dr_pairs + dd_pairs) / (nr_pairs * (nr_pairs - 1))
+#   }
+#   
+#   # Create a dataframe to store the results
+#   result_df <- data.frame(r = seq(0, r_max - dr, by = dr), xi = xi)
+#   
+#   return(result_df)
+# }
+# 
+# # Compute the 2PCF
+# result_df <- two_point_estimation(data)
+# 
+# # Plot the 2PCF
+# ggplot(result_df, aes(x = r, y = xi)) +
+#   geom_line() +
+#   xlab("Separation Distance (r)") +
+#   ylab("2PCF (ξ(r)") +
+#   ggtitle("Two-Point Correlation Function (2PCF) for 3D Data")
+# 
+
+```
+
+```{r}
+distancecount = function(x, y=NULL, dr, rmax) {
+
+  nx = dim(x)[1]
+  ny = dim(y)[1]
+  nr = round(rmax/dr)+1
+  count = array(0,nr)
+
+  if (is.null(y)) {
+    count[1] = nx # number of pairs i-i
+    for (i in seq(nx-1)) {
+      for (j in seq(i+1,nx)) {
+        d = sqrt(sum((x[i,]-x[j,])^2))
+        if (d<=rmax) {
+          index = round(d/dr)+1
+          count[index] = count[index]+1
+        }
+      }
+    }
+  } else {
+    ny = dim(y)[1]
+    for (i in seq(nx)) {
+      for (j in seq(ny)) {
+        d = sqrt(sum((x[i,]-y[j,])^2))
+        if (d<=rmax) {
+          index = round(d/dr)+1
+          count[index] = count[index]+1
+        }
+      }
+    }
+  }
+
+  return(count)
+}
+
+two.point.estimator.landy.szalay = function(D,R,dr=0.01) {
+
+  # D: n-by-d matrix with d-dimensional positions of the observed point set
+  # R: m-by-d matrix with d-dimensional positions of the random point set
+
+  # convert data frames into matrices
+  D = as.matrix(D)
+  R = as.matrix(R)
+
+  # determine size of data
+  nD = dim(D)[1]
+  nR = dim(R)[1]
+  d = dim(D)[2]
+  if (dim(R)[2]!=d) stop('D and R must have the same number of rows.')
+
+  # determine maximal possible distance
+  rmax = 0
+  for (i in seq(d)) {
+    minval = min(min(D[,i]),min(R[,i]))
+    maxval = max(max(D[,i]),max(R[,i]))
+    rmax = rmax+(maxval-minval)^2
+  }
+  rmax = sqrt(rmax)
+  # rmax=2*3.8 rmax=0.1
+  # count pairs
+  DD = distancecount(D,dr=dr,rmax=rmax)
+  RR = distancecount(R,dr=dr,rmax=rmax)
+  DR = distancecount(D,R,dr=dr,rmax=rmax)
+
+  # shell radii
+  r = seq(0,length(DD)-1)*dr
+
+  # compute L-S estimator
+  nDD = nD*(nD-1)/2
+  nRR = nR*(nR-1)/2
+  nDR = nD*nR
+  xi = (DD/nDD-2*DR/nDR)/RR*nRR+1
+  err = sqrt(DD*(nRR/nDD/RR)^2+4*DR*(nRR/nDR/RR)^2+RR*((DD/nDD-2*DR/nDR)/RR^2*nRR)^2)
+  # err = xi^0.5
+  xi[RR==0 | DD==0] = err[RR==0 | DD==0] = NA
+
+  # return results
+  return(list(r=r, xi=xi, err=err))
+
+}
+```
+
+
+```{r}
+D<-data
+
+# Generate random points
+generate_random_points <- function(num_points, rmin, rmax) {
+  points <- matrix(NA, ncol = 3, nrow = num_points)
+  count <- 0
+
+  while (count < num_points) {
+    x <- runif(1, -rmax, rmax)
+    y <- runif(1, -rmax, rmax)
+    z <- runif(1, -rmax, rmax)
+    distance <- sqrt(x^2 + y^2 + z^2)
+
+    if (distance >= rmin && distance <= rmax) {
+      count <- count + 1
+      points[count, ] <- c(x, y, z)
+    }
+  }
+
+  return(points)
+}
+
+# Generate random points
+R <- generate_random_points(2000, 3.7, 3.8)
+
+
+ls = two.point.estimator.landy.szalay(D,R,dr=0.001)
+magplot(ls$r,ls$xi,pch=20,cex=1,ylim=c(-10,10))
+magerr(ls$r,ls$xi,ylo=ls$err)
+abline(h=0,lty=2)
+```
+```{r} 
+ls$r[order(ls$xi, decreasing = TRUE)[1:5]]
+ls$xi[order(ls$xi, decreasing = TRUE)[1:5]]
+
+ls$r[order(ls$xi-ls$err, decreasing = TRUE)[1:5]]
+ls$xi[order(ls$xi-ls$err, decreasing = TRUE)[1:5]]
+```
+
+
+## Question 2
+#### 2a.
+```{r}
+
+```
+
+#### 2b.
+```{r}
+
+```
+
+#### 2c.
+```{r}
+
+```
+
+
+## Question 3
+#### 3a.
+```{r}
+
+```
+
+#### 3b.
+```{r}
+
+```
+
+#### 3c.
+```{r}
+
+```
+
+#### 3d.
+```{r}
+
+```
+
+#### 3e.
+```{r}
+
+```
+
+
