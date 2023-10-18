@@ -10,6 +10,12 @@ library(cooltools)
 library(pracma)
 library(data.table)
 library(ggplot2)
+library(devtools)
+library(rcosmo)
+library(hyper.fit)
+library(LaplacesDemon)
+library(ggplot2)
+library(cubature)
 ```
 
 ## Question 1
@@ -17,107 +23,6 @@ library(ggplot2)
 data <- fread("hiddenscales.csv")
 ```
 
-```{r}
-# # Load the required library
-# library("scatterplot3d")
-# 
-# # Create a 3D scatter plot of the data
-# scatterplot3d(
-#   x = data$x,  # Replace with the actual column names from your data
-#   y = data$y,
-#   z = data$z,
-#   pch = 16,       # Point symbol (adjust as needed)
-#   color = "blue", # Point color (adjust as needed)
-#   main = "3D Scatter Plot of Data",
-#   xlab = "X Axis Label",  # Replace with your axis labels
-#   ylab = "Y Axis Label",
-#   zlab = "Z Axis Label"
-# )
-# 
-# # You can customize the plot further based on your preferences.
-
-```
-```{r}
-# # Load the required library
-# library("scatterplot3d")
-# 
-# # Create 2D scatter plot for XY plane
-# plot(data$x, data$y, pch = 16, col = "blue", main = "XY Plane",
-#      xlab = "X Axis", ylab = "Y Axis")
-# 
-# # Create 2D scatter plot for YZ plane
-# plot(data$y, data$z, pch = 16, col = "red", main = "YZ Plane",
-#      xlab = "Y Axis", ylab = "Z Axis")
-# 
-# # Create 2D scatter plot for XZ plane
-# plot(data$x, data$z, pch = 16, col = "green", main = "XZ Plane",
-#      xlab = "X Axis", ylab = "Z Axis")
-# 
-# 
-# plot((data$x^2 + data$y^2 + data$z^2)^0.5, data$x, pch = 16, col = "blue", main = "XY Plane",
-#      xlab = "X Axis", ylab = "Y Axis")
-
-```
-
-
-```{r}
-# # Define the function to compute the Euclidean distance
-# euclidean_distance <- function(p1, p2) {
-#   sqrt(sum((p1 - p2)^2))
-# }
-# 
-# # Define the function to compute the 2PCF using the Landy-Szalay estimator
-# two_point_estimation <- function(data, dr = 0.001) {
-#   n <- nrow(data)  # Number of data points
-#   d <- ncol(data)  # Number of dimensions ( d = 3)
-#   r_max <- 3.
-#   
-#   # Create an empty matrix to store pair counts
-#   pair_counts <- matrix(0, nrow = n, ncol = n)
-#   
-#   # Compute pair counts
-#   for (i in 1:n) {
-#     for (j in (i + 1):n) {
-#       distance <- euclidean_distance(data[i, ], data[j, ])
-#       if (distance <= r_max & distance >= r_min) {
-#         pair_counts[i, j] <- 1
-#         pair_counts[j, i] <- 1  # Pair counts are symmetric
-#       }
-#     }
-#   }
-#   
-#   # Create an empty vector to store the 2PCF
-#   xi <- numeric(round(r_max / dr))
-#   
-#   # Compute the 2PCF
-#   for (k in 1:length(xi)) {
-#     r_lower <- (k - 1) * dr
-#     r_upper <- k * dr
-#     rr_pairs <- sum(pair_counts[rowSums(pair_counts[, ] >= 2) > 0, ] >= 1)
-#     dr_pairs <- sum(pair_counts[rowSums(pair_counts[, ] >= 1) > 0, ] >= 1)
-#     dd_pairs <- sum(rowSums(pair_counts >= 2) >= 1)
-#     nr_pairs <- sum(pair_counts >= 1)
-#     xi[k] <- (rr_pairs - 2 * dr_pairs + dd_pairs) / (nr_pairs * (nr_pairs - 1))
-#   }
-#   
-#   # Create a dataframe to store the results
-#   result_df <- data.frame(r = seq(0, r_max - dr, by = dr), xi = xi)
-#   
-#   return(result_df)
-# }
-# 
-# # Compute the 2PCF
-# result_df <- two_point_estimation(data)
-# 
-# # Plot the 2PCF
-# ggplot(result_df, aes(x = r, y = xi)) +
-#   geom_line() +
-#   xlab("Separation Distance (r)") +
-#   ylab("2PCF (ξ(r)") +
-#   ggtitle("Two-Point Correlation Function (2PCF) for 3D Data")
-# 
-
-```
 
 ```{r}
 distancecount = function(x, y=NULL, dr, rmax) {
@@ -235,55 +140,253 @@ magerr(ls$r,ls$xi,ylo=ls$err)
 abline(h=0,lty=2)
 ```
 ```{r} 
-ls$r[order(ls$xi, decreasing = TRUE)[1:5]]
-ls$xi[order(ls$xi, decreasing = TRUE)[1:5]]
+# ls$r[order(ls$xi, decreasing = TRUE)[1:2]]
+# ls$xi[order(ls$xi, decreasing = TRUE)[1:2]]
 
-ls$r[order(ls$xi-ls$err, decreasing = TRUE)[1:5]]
-ls$xi[order(ls$xi-ls$err, decreasing = TRUE)[1:5]]
+top2<-ls$r[order(ls$xi-ls$err, decreasing = TRUE)[1:2]]
+# ls$xi[order(ls$xi-ls$err, decreasing = TRUE)[1:2]]
+
+cat("The clear stand out points for a and b are: ",top2[1], "and", top2[2])
 ```
 
 
 ## Question 2
 #### 2a.
 ```{r}
+filename <- "L210N1536.bin"
+density_data <- loadbin(filename, c(128, 128, 128), signed = TRUE)
+```
+
+
+```{r}
+# Set the color scale and aspect ratio
+par(pty = 's')
+
+color_scale <- gray(((1+density_data[1,,])^0.2)/(max((1+density_data[1,,])^0.2)))
+
+image(density_data[1,,], col = color_scale, xlab = "X", ylab = "Y")
 
 ```
 
 #### 2b.
+
 ```{r}
+L = 210
+N = 128
+dr = L / N
+
+delta_k = dft(density_data)
+
+wd <- function(x) {
+  ifelse(x == 0, 1, sin(x) / x)
+}
+
+# Initialize variables
+r_values = seq(0, 20, dr)  # Create a sequence of r values from 0 to 20Mpc/h
+xi_values = numeric(length(r_values))  # Initialize an empty vector for ξ(r) values
+
+# Loop over each r value
+for (r_index in 1:length(r_values)) {
+  r = r_values[r_index]
+  result_sum = 0
+
+  # Loop over each dimension (x1, x2, x3)
+  for (x1 in 1:N) {
+    for (x2 in 1:N) {
+      for (x3 in 1:N) {
+        k = 2 * pi * sqrt((x1 - 64)^2 + (x2 - 64)^2 + (x3 - 64)^2) / L
+        result_sum = result_sum + wd(k * r) * abs(delta_k[x1, x2, x3])^2
+      }
+    }
+  }
+
+  xi_values[r_index] = result_sum
+}
+
+# Plot ξ(r) in a log-log plot
+plot(r_values, xi_values, log = "xy", type = "l", xlab = "r (Mpc/h)", ylab = "ξ(r)")
 
 ```
+
+
 
 #### 2c.
 ```{r}
+# Fit a straight line in log-log space
+log_r = log(r_values)[-1]  # Take the natural logarithm of r
+log_xi = log(xi_values)[-1]  # Take the natural logarithm of ξ(r)
+
+log_data <- cbind(log_r,log_xi)
+
+# Fit the line using hyper.fit
+fit <- hyper.fit(log_data)
+
+# Plot the line on top of the points
+plot(log_r, log_xi, col = "blue", xlab = "r (Mpc/h)", ylab = "ξ(r)")
+
+
+lines(log_r, fit$fit$par[1] * log_r + fit$fit$par[2], col = "red", lwd = 2)  # Plot the fitted line
+
+# Print the results
+cat("Slope (Power Law Index):", round(fit$fit$par[1], 6), "\n")
+cat("1-σ Uncertainty:", round(sqrt(fit$fit$Covar[1,1]), 6), "\n")
+
 
 ```
+
 
 
 ## Question 3
+```{r}
+# Load the quoson data
+quoson_data <- read.csv("quosons.csv")
+```
+
+
 #### 3a.
 ```{r}
+qa <- as.matrix(quoson_data)
+sphereplot(qa, n=500, projection='mollweide',theta0 = 0, phi0 = pi/2)
 
 ```
+
 
 #### 3b.
 ```{r}
+# Define the spherical harmonic function
+spherefun <- function(theta0, phi0, data) {
+  # Extract theta and phi from the data 
+  theta <- data$theta
+  phi <- data$phi
+  
+  Y1 = function(m,theta,phi) sphericalharmonics(1,m,cbind(theta,phi))
+  
+  Yd = cos(theta0)*Y1(0,theta,phi)+ sin(theta0)*(cos(phi0)*Y1(1,theta,phi)+sin(phi0)*Y1(-1,theta,phi))
+  
+  return(Yd)
+}
+
+# Define the log-likelihood function for MLE
+log_likelihood <- function(parameters, data) {
+  a <- parameters[1]
+  theta0 <- parameters[2]
+  phi0 <- parameters[3]
+  
+  # Calculate log-likelihood using the given probability density function
+  log_likelihood_value <- sum(log(1/(4*pi) + a * spherefun(theta0, phi0, data)))
+  
+  return(log_likelihood_value)  
+}
+
+
+# Initial parameter values
+initial_params <- c(0.045, pi/2, pi)
+
+# Bounds for optimization
+lower_bounds <- c(0, 0, 0)
+upper_bounds <- c(0.09, pi, 2 * pi)
+
+# Run the optimization using "L-BFGS-B" method
+optimal_params <- optim(par = initial_params, fn = log_likelihood, data = quoson_data,
+                        method = "L-BFGS-B", lower = lower_bounds, upper = upper_bounds,control=list(fnscale=-1))$par
+
+# Display the MLE solution
+cat("MLE Solution:\n")
+cat("a:", round(optimal_params[1], 6), "\n")
+cat("theta0:", round(optimal_params[2], 5), "\n")
+cat("phi0:", round(optimal_params[3], 5), "\n")
 
 ```
 
+
 #### 3c.
 ```{r}
+# Define the log-likelihood function for MLE
+log_posterior <- function(parameters, data) {
+  a <- parameters[1]
+  theta0 <- parameters[2]
+  phi0 <- parameters[3]
+  prior_a = 0
+  
+  if (a >= 0 && a <= 0.09) {
+    prior_a = 1/0.09
+  }
+
+  
+  # Calculate log-likelihood using the given probability density function
+  log_posterior <- sum(log((1/(4*pi) + a * spherefun(theta0, phi0, data))*prior_a))
+  
+  return(log_posterior)
+}
+
+
+# Initial parameter values
+initial_params <- c(0.045, pi/2, pi)
+
+# Bounds for optimization
+lower_bounds <- c(0, 0, 0)
+upper_bounds <- c(0.09, pi, 2 * pi)
+
+# Run the optimization using "L-BFGS-B" method
+map_optimal_params <- optim(par = initial_params, fn = log_posterior, data = quoson_data,
+                        method = "L-BFGS-B", lower = lower_bounds, upper = upper_bounds,control=list(fnscale=-1))$par
+
+# Display the MLE solution
+cat("MAP Solution:\n")
+cat("a:", round(map_optimal_params[1], 6), "\n")
+cat("theta0:", round(map_optimal_params[2], 5), "\n")
+cat("phi0:", round(map_optimal_params[3], 5), "\n")
 
 ```
 
 #### 3d.
 ```{r}
+set.seed(1)
+Data_0 = list(data=quoson_data, mon.names='', parm.names=c('a', 'theta', 'phi'), N=nrow(quoson_data))
 
+Model_coin = function(parm, data) {
+  parm[1] = interval(parm[1], 0.0, 0.09)
+  parm[2] = interval(parm[2], 0, pi)
+  parm[3] = interval(parm[3], 0, 2*pi)
+  val.prior = 0
+  LL = log_posterior(parm,data$data)
+  LP = LL+val.prior
+  return(list(LP=LP, Dev=-2*LL, Monitor=1, yhat=1, parm=parm))
+}
+
+estimated_params = c(0.06, pi/2, pi)
+output_0 = LaplacesDemon(Model_coin, Data_0, Initial.Values=estimated_params, Algorithm='CHARM',
+Iterations=1e4, Thinning = 10, Status = Inf)
 ```
+
+```{r}
+magtri(output_0$Posterior1)
+magtri(output_0$Posterior2)
+```
+```{r}
+output_0$Summary1
+```
+
+
 
 #### 3e.
+
+
 ```{r}
+# Log-likelihood of the data for the dipole model
+# log_posterior_dipole <- log_posterior(optimal_params, quoson_data)
+
+log_posterior_dipole <-log_posterior(c(0.03053508,2.84332958,3.30001421), quoson_data)
+
+# Log-likelihood of the data for the monopole model (no parameters)
+log_posterior_monopole <- log(nrow(quoson_data)/ (4 * pi))
+
+
+bf = exp(log_posterior_monopole - log_posterior_dipole)
+
+bf
 
 ```
+
 
 
